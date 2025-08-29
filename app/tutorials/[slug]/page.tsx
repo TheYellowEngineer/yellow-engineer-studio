@@ -1,12 +1,12 @@
 import { supabaseServerComponent } from '@/lib/supabase';
 import VideoPlayer from '@/components/VideoPlayer';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 export default async function TutorialPage(
-  { params }: { params: Promise<{ slug: string }> }   // <- params is a Promise now
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = await params;                       // <- await it
-
+  const { slug } = await params;
   const supabase = await supabaseServerComponent();
 
   const { data: t } = await supabase
@@ -15,7 +15,7 @@ export default async function TutorialPage(
     .eq('slug', slug)
     .single();
 
-  if (!t) return <div>Not found</div> as any;
+  if (!t) return notFound(); // <- no `any`
 
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -51,3 +51,4 @@ export default async function TutorialPage(
     </main>
   );
 }
+
