@@ -4,22 +4,23 @@ import { supabaseRoute } from '@/lib/supabase';
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { uid: string } }
+  context: { params: Promise<{ uid: string }> } // <- Promise here
 ) {
-  const supabase = await supabaseRoute(); // Route handlers can set/read cookies
+  const { uid } = await context.params;          // <- await it
+  const supabase = await supabaseRoute();        // route handler (can set cookies)
 
   // Must be signed in
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
   // Find tutorial by Cloudflare Stream UID
-  const { data: tut } = await supabase
+  const { data: tut, error: tutErr } = await supabase
     .from('tutorials')
     .select('id')
-    .eq('cf_stream_uid', params.uid)
+    .eq('cf_stream_uid', uid)
     .single();
 
-  if (!tut) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (tutErr || !tut) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Verify purchase
   const { data: purchase } = await supabase
@@ -33,7 +34,7 @@ export async function GET(
 
   // Request signed playback token from Cloudflare Stream
   const resp = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${params.uid}/token`,
+    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${uid}/token`,
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
