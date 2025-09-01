@@ -1,31 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useSearchParams } from 'next/navigation';
 
+// Optional: prevents static prerendering complaints for a purely client page
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="max-w-md mx-auto p-8">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const sp = useSearchParams();            // ✅ now wrapped in <Suspense>
+  const next = sp.get('next') ?? '/';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const sp = useSearchParams();
-  const next = sp.get('next') ?? '/';
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     const supabase = supabaseBrowser();
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setErrorMsg(error.message);
-    } else {
-      // redirect back to where the user came from
-      window.location.href = next;
-    }
+    if (error) setErrorMsg(error.message);
+    else window.location.href = next;      // return to original page
   }
 
   return (
@@ -48,9 +53,7 @@ export default function LoginPage() {
           className="w-full rounded border px-3 py-2"
           required
         />
-        <button className="w-full py-2 rounded bg-black text-white">
-          Sign in
-        </button>
+        <button className="w-full py-2 rounded bg-black text-white">Sign in</button>
         {errorMsg && <p className="text-red-600">{errorMsg}</p>}
       </form>
     </main>
