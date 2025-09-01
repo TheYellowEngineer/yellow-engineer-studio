@@ -19,6 +19,7 @@ export default async function TutorialPage(
   if (!t) return notFound();
 
   const { data: { user } } = await supabase.auth.getUser();
+  console.log("Current user.id:", user?.id);  // 👈 add this line
 
   let hasAccess = false;
   if (user) {
