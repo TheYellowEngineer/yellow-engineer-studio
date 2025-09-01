@@ -25,7 +25,7 @@ export async function supabaseRoute() {
       set: async (name: string, value: string, options: CookieOptions) => {
         store.set(name, value, options);
       },
-      remove: async (name: string, _options: CookieOptions) => {
+      remove: async (name: string) => {
         store.delete(name);
       },
     },
