@@ -24,7 +24,23 @@ export async function POST(req: NextRequest) {
   // auth
   const supabase = await supabaseRoute();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  if (!user) {
+    // Graceful redirect to login with return=referer (the page that had the Buy button)
+    const referer = req.headers.get('referer') || process.env.NEXT_PUBLIC_SITE_URL || '/';
+    const loginUrl = new URL('/login', process.env.NEXT_PUBLIC_SITE_URL);
+    // If referer is same-origin, use its path; else default to home
+    try {
+      const r = new URL(referer);
+      const sameOrigin = r.origin === process.env.NEXT_PUBLIC_SITE_URL;
+      const nextPath = sameOrigin ? (r.pathname + r.search) : '/';
+      loginUrl.searchParams.set('next', nextPath);
+    } catch {
+      // ignore URL parse errors
+      loginUrl.searchParams.set('next', '/');
+    }
+    return NextResponse.redirect(loginUrl, { status: 303 });
+  }
 
   // fetch tutorial
   const { data: t } = await supabase
@@ -39,14 +55,18 @@ export async function POST(req: NextRequest) {
   }
 
   // create checkout session
+  const base = process.env.NEXT_PUBLIC_SITE_URL!;
+  const success_url = `${base}/tutorials/${t.slug}?success=1`;
+  const cancel_url = `${base}/tutorials/${t.slug}?canceled=1`;
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: [{ price: t.stripe_price_id, quantity: 1 }],
     metadata: { tutorial_id: t.id },
     client_reference_id: user.id,
     customer_email: user.email ?? undefined,
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/tutorials/${t.slug}?success=1`,
-    cancel_url:  `${process.env.NEXT_PUBLIC_SITE_URL}/tutorials/${t.slug}?canceled=1`,
+    success_url,
+    cancel_url,
   });
 
   // redirect browser to Stripe

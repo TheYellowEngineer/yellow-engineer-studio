@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const sp = useSearchParams();
+  const next = sp.get('next') ?? '/';
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -20,8 +23,8 @@ export default function LoginPage() {
     if (error) {
       setErrorMsg(error.message);
     } else {
-      // redirect after login
-      window.location.href = '/';
+      // redirect back to where the user came from
+      window.location.href = next;
     }
   }
 
