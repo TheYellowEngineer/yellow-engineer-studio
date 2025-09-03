@@ -1,5 +1,5 @@
 // app/api/stream-token/[uid]/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseRoute } from '@/lib/supabase';
 
 type CFTokenResult = {
@@ -10,11 +10,11 @@ type CFTokenResult = {
 };
 
 export async function GET(
-  _req: Request,
-  { params }: { params: { uid: string } }
+  _req: NextRequest,
+  context: { params: Promise<{ uid: string }> }
 ) {
   try {
-    const { uid } = params;
+    const { uid } = await context.params; // match your project's expected Promise-style params
     const supabase = await supabaseRoute();
 
     // 1) Auth
@@ -73,7 +73,7 @@ export async function GET(
       );
     }
 
-    // 4) Cloudflare token request (must send JSON)
+    // 4) Cloudflare token request (send JSON)
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     const apiToken = process.env.CLOUDFLARE_API_TOKEN;
     if (!accountId || !apiToken) {
@@ -118,7 +118,7 @@ export async function GET(
       );
     }
 
-    // 5) Always return a predictable envelope
+    // 5) Predictable JSON envelope for the client
     return NextResponse.json({ token }, { status: 200 });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
