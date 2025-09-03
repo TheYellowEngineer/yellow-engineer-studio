@@ -3,31 +3,50 @@ import { useEffect, useState } from 'react';
 
 export default function VideoPlayer({ uid }: { uid: string }) {
   const [token, setToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/stream-token/${uid}`)
-      .then((r) => r.json())
-      .then((data) => {
-        // normalize: handle { token } or { result: { token } }
-        if (data.token) setToken(data.token);
-        else if (data.result?.token) setToken(data.result.token);
-        else throw new Error('No token in response');
-      })
-      .catch((err) => {
-        setError(err.message);
-      });
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/stream-token/${uid}`, { cache: 'no-store' });
+
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Non-JSON response (${res.status}): ${text.slice(0,200)}`);
+        }
+
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(`${body?.error ?? 'error'}${body?.detail ? `: ${body.detail}` : ''}`);
+        }
+        if (!body?.token) {
+          throw new Error('No token in response');
+        }
+        if (!cancelled) setToken(body.token);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message ?? String(e));
+      }
+    })();
+    return () => { cancelled = true; };
   }, [uid]);
 
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
-  if (!token) return <div className="p-6">Unlocking your video…</div>;
+  if (err) {
+    return <p className="text-red-500 text-sm">Error: {err}</p>;
+  }
+  if (!token) {
+    return <div className="p-6 text-stone-400 text-sm">Unlocking your video…</div>;
+  }
+
+  const src = `https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_EMBED_ID}.cloudflarestream.com/${uid}/iframe?token=${encodeURIComponent(token)}`;
 
   return (
     <iframe
       className="w-full aspect-video rounded-2xl shadow"
-      allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
       allowFullScreen
-      src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_EMBED_ID}.cloudflarestream.com/${uid}/iframe?token=${encodeURIComponent(token)}`}
+      src={src}
     />
   );
 }
