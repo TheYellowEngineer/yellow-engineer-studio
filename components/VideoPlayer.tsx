@@ -8,35 +8,41 @@ export default function VideoPlayer({ uid }: { uid: string }) {
   useEffect(() => {
     fetch(`/api/stream-token/${uid}`, { cache: 'no-store' })
       .then((r) =>
-        r
-          .text() // ← don't assume JSON
-          .then((raw) => {
-            let data: any = {};
-            try {
-              if (raw) data = JSON.parse(raw);
-            } catch {
-              // non-JSON (e.g., Cloudflare HTML, empty body) — leave data as {}
-            }
-            // If the status isn't OK or there is no token, throw a readable error
-            if (!r.ok || !(data?.token || data?.result?.token)) {
-              const message =
-                data?.error ||
-                `Token request failed (${r.status}${
-                  raw ? `, body: ${raw.slice(0, 120)}…` : ''
-                })`;
-              throw new Error(message);
-            }
-            return data;
-          })
+        r.text().then((raw) => {
+          let data: unknown = {};
+          try {
+            if (raw) data = JSON.parse(raw);
+          } catch {
+            // non-JSON (HTML/error/empty) → leave data as {}
+          }
+
+          // Narrow the unknown into the shapes we expect
+          const maybeObj = data as {
+            token?: string;
+            result?: { token?: string };
+            error?: string;
+          };
+
+          const extractedToken =
+            maybeObj.token ?? maybeObj.result?.token ?? null;
+
+          if (!r.ok || !extractedToken) {
+            const message =
+              maybeObj.error ||
+              `Token request failed (${r.status}${
+                raw ? `, body: ${raw.slice(0, 120)}…` : ''
+              })`;
+            throw new Error(message);
+          }
+
+          return extractedToken;
+        })
       )
-      .then((data) => {
-        // normalize: handle { token } or { result: { token } }
-        if (data.token) setToken(data.token);
-        else if (data.result?.token) setToken(data.result.token);
-        else throw new Error('No token in response');
-      })
-      .catch((err) => {
-        setError(err.message || 'Failed to load stream token');
+      .then((t) => setToken(t))
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error ? err.message : 'Failed to load stream token';
+        setError(msg);
       });
   }, [uid]);
 
