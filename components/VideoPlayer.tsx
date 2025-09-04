@@ -6,8 +6,29 @@ export default function VideoPlayer({ uid }: { uid: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/stream-token/${uid}`)
-      .then((r) => r.json())
+    fetch(`/api/stream-token/${uid}`, { cache: 'no-store' })
+      .then((r) =>
+        r
+          .text() // ← don't assume JSON
+          .then((raw) => {
+            let data: any = {};
+            try {
+              if (raw) data = JSON.parse(raw);
+            } catch {
+              // non-JSON (e.g., Cloudflare HTML, empty body) — leave data as {}
+            }
+            // If the status isn't OK or there is no token, throw a readable error
+            if (!r.ok || !(data?.token || data?.result?.token)) {
+              const message =
+                data?.error ||
+                `Token request failed (${r.status}${
+                  raw ? `, body: ${raw.slice(0, 120)}…` : ''
+                })`;
+              throw new Error(message);
+            }
+            return data;
+          })
+      )
       .then((data) => {
         // normalize: handle { token } or { result: { token } }
         if (data.token) setToken(data.token);
@@ -15,7 +36,7 @@ export default function VideoPlayer({ uid }: { uid: string }) {
         else throw new Error('No token in response');
       })
       .catch((err) => {
-        setError(err.message);
+        setError(err.message || 'Failed to load stream token');
       });
   }, [uid]);
 
@@ -27,7 +48,9 @@ export default function VideoPlayer({ uid }: { uid: string }) {
       className="w-full aspect-video rounded-2xl shadow"
       allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
       allowFullScreen
-      src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_EMBED_ID}.cloudflarestream.com/${uid}/iframe?token=${encodeURIComponent(token)}`}
+      src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_EMBED_ID}.cloudflarestream.com/${uid}/iframe?token=${encodeURIComponent(
+        token
+      )}`}
     />
   );
 }
